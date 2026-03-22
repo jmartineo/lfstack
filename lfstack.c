@@ -113,6 +113,45 @@ static inline void _lfstack_free(void* pl, void* ptr) {
 	free(ptr);
 }
 
+int g_lfstack_pool_capacity = 0;
+lfstack_pool_t g_lfstack_pool;
+
+/* --- Node pool for allocation-free benchmarking -------------------- */
+static void * _pool_lfs_malloc(void *pl, size_t sz) {
+	lfstack_pool_t *pool = (lfstack_pool_t *)pl;
+	lfstack_cas_node_t *node;
+	do {
+		node = pool->head;
+		if (node == NULL) return malloc(sz); /* fallback if pool exhausted */
+	} while (!__LFS_BOOL_COMPARE_AND_SWAP(&pool->head, node, node->nextfree));
+	return node;
+}
+
+static void _pool_lfs_free(void *pl, void *ptr) {
+	lfstack_pool_t *pool = (lfstack_pool_t *)pl;
+	lfstack_cas_node_t *node = (lfstack_cas_node_t *)ptr;
+	lfstack_cas_node_t *old_head;
+	do {
+		old_head = pool->head;
+		node->nextfree = old_head;
+	} while (!__LFS_BOOL_COMPARE_AND_SWAP(&pool->head, old_head, node));
+}
+
+void lfstack_pool_init(lfstack_pool_t *pool, int capacity) {
+	int i;
+	pool->head = NULL;
+	for (i = 0; i < capacity; i++) {
+		lfstack_cas_node_t *node = malloc(sizeof(lfstack_cas_node_t));
+		node->nextfree = pool->head;
+		pool->head = node;
+	}
+}
+
+int lfstack_init_pool(lfstack_t *s, lfstack_pool_t *pool) {
+	return lfstack_init_mf(s, pool, _pool_lfs_malloc, _pool_lfs_free);
+}
+/* ------------------------------------------------------------------- */
+
 static void *
 _pop(lfstack_t *lfs) {
 	lfstack_cas_node_t *head, *prev;

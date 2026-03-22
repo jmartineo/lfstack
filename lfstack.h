@@ -78,6 +78,18 @@ extern size_t lfstack_size(lfstack_t *lfstack);
 extern void lfstack_sleep(unsigned int milisec);
 
 
+/* --- Node pool for allocation-free benchmarking -------------------- */
+typedef struct {
+	lfstack_cas_node_t * volatile head;
+} lfstack_pool_t;
+
+extern void lfstack_pool_init(lfstack_pool_t *pool, int capacity);
+extern int  lfstack_init_pool(lfstack_t *s, lfstack_pool_t *pool);
+extern int g_lfstack_pool_capacity;
+extern lfstack_pool_t g_lfstack_pool;
+
+/* ------------------------------------------------------------------- */
+
 #ifdef __cplusplus
 }
 #endif
